@@ -2,9 +2,19 @@
 
 declare(strict_types=1);
 
-// ================================
+// ============================================================
+// DEBUG
+// ============================================================
+
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+
+error_reporting(E_ALL);
+
+
+// ============================================================
 // CONFIGURAÇÃO DO BANCO
-// ================================
+// ============================================================
 
 $host = 'database-1.cq3gi4g621yv.us-east-1.rds.amazonaws.com';
 $port = '5432';
@@ -13,13 +23,150 @@ $user = 'postgres';
 $password = 'ZNDKsvVqEDw5XBT';
 
 
-// ================================
-// CONEXÃO COM O POSTGRESQL
-// ================================
+// ============================================================
+// FUNÇÃO DE DEBUG
+// ============================================================
+
+function debug(string $titulo, mixed $valor = null): void
+{
+    echo '<div style="
+        background:#111;
+        color:#00ff66;
+        padding:10px 15px;
+        margin:5px 0;
+        font-family:monospace;
+        border-radius:5px;
+        white-space:pre-wrap;
+    ">';
+
+    echo '<strong>[DEBUG] ' . htmlspecialchars($titulo) . '</strong>';
+
+    if ($valor !== null) {
+        echo "\n";
+        echo htmlspecialchars(
+            print_r($valor, true)
+        );
+    }
+
+    echo '</div>';
+}
+
+
+// ============================================================
+// INÍCIO
+// ============================================================
+
+echo '<h2>Debug da conexão PostgreSQL</h2>';
+
+debug('PHP', PHP_VERSION);
+debug('Sistema', PHP_OS);
+
+
+// ============================================================
+// VERIFICA EXTENSÃO PDO
+// ============================================================
+
+debug(
+    'PDO disponível?',
+    extension_loaded('pdo') ? 'SIM' : 'NÃO'
+);
+
+debug(
+    'PDO PostgreSQL disponível?',
+    extension_loaded('pdo_pgsql') ? 'SIM' : 'NÃO'
+);
+
+if (!extension_loaded('pdo_pgsql')) {
+
+    die('
+        <div style="
+            background:#ffdddd;
+            color:#900;
+            padding:20px;
+            margin:20px 0;
+        ">
+            <strong>ERRO:</strong>
+            A extensão pdo_pgsql não está habilitada.
+        </div>
+    ');
+}
+
+
+// ============================================================
+// TESTE DNS
+// ============================================================
+
+debug('Host PostgreSQL', $host);
+
+$ip = gethostbyname($host);
+
+debug('IP resolvido', $ip);
+
+if ($ip === $host) {
+
+    debug(
+        'DNS',
+        'ERRO: não foi possível resolver o hostname.'
+    );
+
+} else {
+
+    debug(
+        'DNS',
+        'OK'
+    );
+}
+
+
+// ============================================================
+// TESTE DE PORTA
+// ============================================================
+
+debug(
+    'Testando porta',
+    $host . ':' . $port
+);
+
+$socket = @fsockopen(
+    $host,
+    (int) $port,
+    $errno,
+    $errstr,
+    5
+);
+
+if ($socket) {
+
+    debug(
+        'Porta PostgreSQL',
+        'OK - porta 5432 acessível'
+    );
+
+    fclose($socket);
+
+} else {
+
+    debug(
+        'Porta PostgreSQL',
+        "ERRO\nCódigo: {$errno}\nMensagem: {$errstr}"
+    );
+}
+
+
+// ============================================================
+// CONEXÃO PDO
+// ============================================================
+
+debug('Iniciando conexão PDO...');
 
 try {
+
+    $dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
+
+    debug('DSN', $dsn);
+
     $pdo = new PDO(
-        "pgsql:host={$host};port={$port};dbname={$dbname}",
+        $dsn,
         $user,
         $password,
         [
@@ -27,14 +174,100 @@ try {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ]
     );
+
+    debug(
+        'CONEXÃO',
+        'OK - conectado ao PostgreSQL!'
+    );
+
 } catch (PDOException $e) {
-    die('Erro ao conectar ao banco de dados.');
+
+    debug(
+        'ERRO PDO',
+        [
+            'mensagem' => $e->getMessage(),
+            'codigo' => $e->getCode(),
+            'arquivo' => $e->getFile(),
+            'linha' => $e->getLine(),
+        ]
+    );
+
+    echo '<pre style="
+        background:#300;
+        color:#fff;
+        padding:20px;
+        border-radius:5px;
+    ">';
+
+    echo htmlspecialchars(
+        $e->getTraceAsString()
+    );
+
+    echo '</pre>';
+
+    die();
 }
 
 
-// ================================
-// CONSULTA
-// ================================
+// ============================================================
+// TESTE SIMPLES NO BANCO
+// ============================================================
+
+debug(
+    'Executando SELECT 1...'
+);
+
+try {
+
+    $teste = $pdo->query('SELECT 1')->fetchColumn();
+
+    debug(
+        'SELECT 1',
+        $teste
+    );
+
+} catch (PDOException $e) {
+
+    debug(
+        'ERRO SELECT 1',
+        $e->getMessage()
+    );
+
+    die();
+}
+
+
+// ============================================================
+// INFORMAÇÕES DO POSTGRESQL
+// ============================================================
+
+try {
+
+    $versao = $pdo
+        ->query('SELECT version()')
+        ->fetchColumn();
+
+    debug(
+        'Versão PostgreSQL',
+        $versao
+    );
+
+} catch (PDOException $e) {
+
+    debug(
+        'ERRO ao consultar versão',
+        $e->getMessage()
+    );
+}
+
+
+// ============================================================
+// CONSULTA DOS CLIENTES
+// ============================================================
+
+debug(
+    'Executando consulta dos clientes...'
+);
 
 $sql = "
     SELECT
@@ -66,13 +299,45 @@ $sql = "
     ORDER BY c.id DESC
 ";
 
-$stmt = $pdo->query($sql);
-$clientes = $stmt->fetchAll();
+
+try {
+
+    $stmt = $pdo->query($sql);
+
+    $clientes = $stmt->fetchAll();
+
+    debug(
+        'Consulta',
+        'OK'
+    );
+
+    debug(
+        'Quantidade de registros',
+        count($clientes)
+    );
+
+} catch (PDOException $e) {
+
+    debug(
+        'ERRO NA CONSULTA SQL',
+        [
+            'mensagem' => $e->getMessage(),
+            'codigo' => $e->getCode(),
+        ]
+    );
+
+    debug(
+        'SQL executado',
+        $sql
+    );
+
+    die();
+}
 
 
-// ================================
-// FUNÇÃO PARA ESCAPAR HTML
-// ================================
+// ============================================================
+// FUNÇÃO HTML
+// ============================================================
 
 function e(?string $valor): string
 {
@@ -85,201 +350,133 @@ function e(?string $valor): string
 
 ?>
 
-<!DOCTYPE html>
-<html lang="pt-BR">
+<hr>
 
-<head>
-    <meta charset="UTF-8">
+<h1>Lista de Clientes</h1>
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>Clientes</title>
-
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            padding: 30px;
-            font-family: Arial, sans-serif;
-            background: #f4f6f8;
-            color: #333;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        h1 {
-            margin-bottom: 20px;
-        }
-
-        .tabela-container {
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 1100px;
-        }
-
-        th,
-        td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #eee;
-            text-align: left;
-            white-space: nowrap;
-        }
-
-        th {
-            background: #343a40;
-            color: #fff;
-        }
-
-        tr:hover {
-            background: #f8f9fa;
-        }
-
-        .sem-dados {
-            padding: 30px;
-            text-align: center;
-            color: #777;
-        }
-
-        .contador {
-            margin-bottom: 15px;
-            color: #666;
-        }
-    </style>
-</head>
-
-<body>
-
-<div class="container">
-
-    <h1>Lista de Clientes</h1>
-
-    <div class="contador">
-        Total de clientes: <?= count($clientes) ?>
-    </div>
-
-    <div class="tabela-container">
-
-        <?php if (empty($clientes)): ?>
-
-            <div class="sem-dados">
-                Nenhum cliente encontrado.
-            </div>
-
-        <?php else: ?>
-
-            <table>
-
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Nome</th>
-                        <th>E-mail</th>
-                        <th>CPF</th>
-                        <th>Nascimento</th>
-                        <th>Telefone</th>
-                        <th>Tipo</th>
-                        <th>Endereço</th>
-                        <th>Bairro</th>
-                        <th>Cidade</th>
-                        <th>Estado</th>
-                        <th>CEP</th>
-                        <th>Criado em</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-
-                <?php foreach ($clientes as $cliente): ?>
-
-                    <tr>
-
-                        <td>
-                            <?= e((string) $cliente['id']) ?>
-                        </td>
-
-                        <td>
-                            <?= e($cliente['nome']) ?>
-                        </td>
-
-                        <td>
-                            <?= e($cliente['email']) ?>
-                        </td>
-
-                        <td>
-                            <?= e($cliente['cpf']) ?>
-                        </td>
-
-                        <td>
-                            <?= e($cliente['data_nascimento']) ?>
-                        </td>
-
-                        <td>
-                            <?= e($cliente['telefone']) ?>
-                        </td>
-
-                        <td>
-                            <?= e($cliente['tipo_telefone']) ?>
-                        </td>
-
-                        <td>
-                            <?= e(
-                                trim(
-                                    ($cliente['rua'] ?? '') .
-                                    ', ' .
-                                    ($cliente['numero'] ?? '')
-                                )
-                            ) ?>
-                        </td>
-
-                        <td>
-                            <?= e($cliente['bairro']) ?>
-                        </td>
-
-                        <td>
-                            <?= e($cliente['cidade']) ?>
-                        </td>
-
-                        <td>
-                            <?= e($cliente['estado']) ?>
-                        </td>
-
-                        <td>
-                            <?= e($cliente['cep']) ?>
-                        </td>
-
-                        <td>
-                            <?= e($cliente['criado_em']) ?>
-                        </td>
-
-                    </tr>
-
-                <?php endforeach; ?>
-
-                </tbody>
-
-            </table>
-
-        <?php endif; ?>
-
-    </div>
-
+<div style="
+    margin-bottom:20px;
+    font-family:Arial;
+">
+    Total de clientes:
+    <strong><?= count($clientes) ?></strong>
 </div>
 
-</body>
-</html>
+
+<?php if (empty($clientes)): ?>
+
+    <div style="
+        padding:20px;
+        background:#fff3cd;
+        color:#856404;
+        border:1px solid #ffeeba;
+    ">
+        Nenhum cliente encontrado.
+    </div>
+
+<?php else: ?>
+
+    <table style="
+        width:100%;
+        border-collapse:collapse;
+        font-family:Arial;
+    ">
+
+        <thead>
+
+            <tr style="
+                background:#343a40;
+                color:white;
+            ">
+
+                <th style="padding:10px;">ID</th>
+                <th style="padding:10px;">Nome</th>
+                <th style="padding:10px;">E-mail</th>
+                <th style="padding:10px;">CPF</th>
+                <th style="padding:10px;">Nascimento</th>
+                <th style="padding:10px;">Telefone</th>
+                <th style="padding:10px;">Tipo</th>
+                <th style="padding:10px;">Endereço</th>
+                <th style="padding:10px;">Bairro</th>
+                <th style="padding:10px;">Cidade</th>
+                <th style="padding:10px;">Estado</th>
+                <th style="padding:10px;">CEP</th>
+                <th style="padding:10px;">Criado em</th>
+
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+        <?php foreach ($clientes as $cliente): ?>
+
+            <tr>
+
+                <td style="padding:10px;">
+                    <?= e((string) $cliente['id']) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e($cliente['nome']) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e($cliente['email']) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e($cliente['cpf']) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e($cliente['data_nascimento']) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e($cliente['telefone']) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e($cliente['tipo_telefone']) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e(
+                        trim(
+                            ($cliente['rua'] ?? '') .
+                            ', ' .
+                            ($cliente['numero'] ?? '')
+                        )
+                    ) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e($cliente['bairro']) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e($cliente['cidade']) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e($cliente['estado']) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e($cliente['cep']) ?>
+                </td>
+
+                <td style="padding:10px;">
+                    <?= e($cliente['criado_em']) ?>
+                </td>
+
+            </tr>
+
+        <?php endforeach; ?>
+
+        </tbody>
+
+    </table>
+
+<?php endif; ?>
