@@ -2,15 +2,7 @@
 
 declare(strict_types=1);
 
-// ============================================================
-// CONFIGURAÇÃO DO BANCO
-// ============================================================
-
-$host = 'database-1.cq3gi4g621yv.us-east-1.rds.amazonaws.com';
-$port = '5432';
-$dbname = 'aws';
-$user = 'postgres';
-$password = 'ZNDKsvVqEDw5XBT';
+include '../../banco.php';
 
 
 // ============================================================
